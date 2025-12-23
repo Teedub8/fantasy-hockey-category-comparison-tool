@@ -31,12 +31,17 @@ def normalize(df, categories, pool_size, replacement_percentile):
     results = {}
 
     for pos in ["F", "D"]:
-        pos_df = df[df["POS"] == pos].copy()
+       pos_df = df[df["POS"] == pos].copy()
 
-        # Fantasy-relevant players by TOI
-        pos_df = pos_df.sort_values("TOI", ascending=False).head(pool_size)
+# Skip if there are no players of this position
+if pos_df.empty:
+    results[pos] = pd.DataFrame()
+    continue
 
-        z_df = pd.DataFrame(index=pos_df.index)
+# Fantasy-relevant players by TOI
+pos_df = pos_df.sort_values("TOI", ascending=False).head(pool_size)
+
+z_df = pd.DataFrame(index=pos_df.index)
 
         for cat in categories:
             z_df[cat] = z_score(pos_df[cat])
