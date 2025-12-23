@@ -1,10 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import os
 
 # Ensure correct working directory (important for Streamlit Cloud)
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 # -----------------------------
 # Configuration
