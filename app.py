@@ -31,17 +31,17 @@ def normalize(df, categories, pool_size, replacement_percentile):
     results = {}
 
     for pos in ["F", "D"]:
-       pos_df = df[df["POS"] == pos].copy()
+        pos_df = df[df["POS"] == pos].copy()
 
-    # Skip if there are no players of this position
-    if pos_df.empty:
-        results[pos] = pd.DataFrame()
-    continue
+        # Skip if there are no players of this position
+        if pos_df.empty:
+            results[pos] = pd.DataFrame()
+            continue
 
-# Fantasy-relevant players by TOI
-pos_df = pos_df.sort_values("TOI", ascending=False).head(pool_size)
+        # Fantasy-relevant players by TOI
+        pos_df = pos_df.sort_values("TOI", ascending=False).head(pool_size)
 
-z_df = pd.DataFrame(index=pos_df.index)
+        z_df = pd.DataFrame(index=pos_df.index)
 
         for cat in categories:
             z_df[cat] = z_score(pos_df[cat])
@@ -49,7 +49,11 @@ z_df = pd.DataFrame(index=pos_df.index)
         z_df["TOTAL"] = z_df.sum(axis=1)
 
         # Shift so replacement level = 0
-        baseline = np.percentile(z_df["TOTAL"], replacement_percentile)
+        if z_df["TOTAL"].dropna().empty:
+            baseline = 0
+        else:
+            baseline = np.percentile(z_df["TOTAL"].dropna(), replacement_percentile)
+
         z_df["TOTAL"] = z_df["TOTAL"] - baseline
 
         results[pos] = z_df
