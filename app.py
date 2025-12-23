@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# Ensure correct working directory (important for Streamlit Cloud)
-
 # -----------------------------
 # Configuration
 # -----------------------------
@@ -31,6 +29,7 @@ def normalize(df, categories, pool_size, replacement_percentile):
     results = {}
 
     for pos in ["F", "D"]:
+        # Filter by position
         pos_df = df[df["POS"] == pos].copy()
 
         # Skip if there are no players of this position
@@ -43,10 +42,15 @@ def normalize(df, categories, pool_size, replacement_percentile):
 
         z_df = pd.DataFrame(index=pos_df.index)
 
+        # Calculate z-scores for selected categories
         for cat in categories:
-            z_df[cat] = z_score(pos_df[cat])
+            if cat in pos_df.columns:
+                z_df[cat] = z_score(pos_df[cat])
+            else:
+                z_df[cat] = 0
 
-        z_df["TOTAL"] = z_df.sum(axis=1)
+        # Total z-score
+        z_df["TOTAL"] = z_df.sum(axis=1, numeric_only=True)
 
         # Shift so replacement level = 0
         if z_df["TOTAL"].dropna().empty:
@@ -116,7 +120,12 @@ normalized = normalize(
 p1 = df[df["Player"] == player1].iloc[0]
 p2 = df[df["Player"] == player2].iloc[0]
 
-pos = p1["POS"]  # v1 assumes same position
+pos = p1["POS"]  # assumes both players have the same position
+
+# Handle case where normalized data may be empty for a position
+if pos not in normalized or normalized[pos].empty:
+    st.warning(f"No normalized data available for position {pos}.")
+    st.stop()
 
 p1_score = normalized[pos].loc[p1.name]["TOTAL"]
 p2_score = normalized[pos].loc[p2.name]["TOTAL"]
