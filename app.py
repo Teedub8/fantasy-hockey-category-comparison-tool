@@ -33,9 +33,9 @@ def normalize(df, categories, pool_size, replacement_percentile):
     for pos in ["F", "D"]:
        pos_df = df[df["POS"] == pos].copy()
 
-# Skip if there are no players of this position
-if pos_df.empty:
-    results[pos] = pd.DataFrame()
+    # Skip if there are no players of this position
+    if pos_df.empty:
+        results[pos] = pd.DataFrame()
     continue
 
 # Fantasy-relevant players by TOI
