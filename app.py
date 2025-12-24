@@ -6,14 +6,15 @@ import altair as alt
 
 DATA_PATH = "data/full_nhl_stats.csv"
 
-st.title("Fantasy Hockey Multi-Player & Trade Comparison Dashboard")
+st.title("Fantasy Hockey Trade & Player Comparison Tool")
 
 # -----------------------------
-# Sidebar for league settings
+# Sidebar: league settings
 # -----------------------------
 st.sidebar.header("League Settings")
-league_size = st.sidebar.number_input("Number of teams", min_value=4, max_value=20, value=12)
-all_categories = ["goals","assists","points","plusMinus","shots"]
+league_size = st.sidebar.number_input("Number of teams in your league", min_value=4, max_value=20, value=12)
+roster_size = st.sidebar.number_input("Roster spots per team", min_value=10, max_value=20, value=15)
+all_categories = ["goals","assists","points","plusMinus","shots","hits","blocks","pim","ppg","shg","gwg"]
 selected_categories = st.sidebar.multiselect("Select categories to compare", all_categories, default=all_categories)
 
 # -----------------------------
@@ -27,35 +28,32 @@ else:
     df = pd.DataFrame()
 
 # -----------------------------
-# Helper functions
+# Functions
 # -----------------------------
 def highlight_comparison(row):
     styles = [''] * len(row)
     try:
-        a_idx = row.index.get_loc("Side A")
-        b_idx = row.index.get_loc("Side B")
-        if row["Side A"] > row["Side B"]:
+        a_idx = row.index.get_loc("Side A Z")
+        b_idx = row.index.get_loc("Side B Z")
+        if row["Side A Z"] > row["Side B Z"]:
             styles[a_idx] = 'background-color: lightgreen'
-        elif row["Side B"] > row["Side A"]:
+        elif row["Side B Z"] > row["Side A Z"]:
             styles[b_idx] = 'background-color: lightgreen'
     except KeyError:
         pass
     return styles
 
-def aggregate_z_scores(df, players, numeric_cols):
-    """Compute sum of z-scores for selected players"""
-    if not players:
-        return pd.Series([0]*len(numeric_cols), index=numeric_cols)
-    z_scores = (df[numeric_cols] - df[numeric_cols].mean()) / df[numeric_cols].std()
-    return z_scores[df['name'].isin(players)].sum()
+def get_replacement_level(df, league_size, roster_size):
+    total_players = league_size * roster_size
+    sorted_df = df.sort_values(by="points", ascending=False)  # or total points/stat you prefer
+    replacement_level = sorted_df.iloc[total_players:]
+    return replacement_level
 
-def compute_percentiles(df, side_values, numeric_cols):
-    """Percentile per stat, 0-100"""
-    percentiles = []
-    for i, col in enumerate(numeric_cols):
-        percent = (df[col] <= side_values[i]).mean() * 100
-        percentiles.append(percent)
-    return percentiles
+def compute_z_scores(df, numeric_cols, replacement_pool):
+    mean_vals = replacement_pool[numeric_cols].mean()
+    std_vals = replacement_pool[numeric_cols].std()
+    z_scores = (df[numeric_cols] - mean_vals) / std_vals
+    return z_scores
 
 # -----------------------------
 # Multi-player selection
@@ -74,37 +72,27 @@ if not df.empty:
     side_b_selected = st.multiselect("Side B Players", side_b_options)
 
     numeric_cols = selected_categories
+    replacement_pool = get_replacement_level(df, league_size, roster_size)
+    z_scores_df = compute_z_scores(df, numeric_cols, replacement_pool)
 
-    # -----------------------------
-    # Aggregate stats
-    # -----------------------------
-    side_a_sum = df[df['name'].isin(side_a_selected)][numeric_cols].sum() if side_a_selected else pd.Series([0]*len(numeric_cols), index=numeric_cols)
-    side_b_sum = df[df['name'].isin(side_b_selected)][numeric_cols].sum() if side_b_selected else pd.Series([0]*len(numeric_cols), index=numeric_cols)
+    # Aggregate z-scores for each side
+    side_a_z = z_scores_df[df['name'].isin(side_a_selected)].sum() if side_a_selected else pd.Series([0]*len(numeric_cols), index=numeric_cols)
+    side_b_z = z_scores_df[df['name'].isin(side_b_selected)].sum() if side_b_selected else pd.Series([0]*len(numeric_cols), index=numeric_cols)
 
-    # -----------------------------
-    # Compute z-scores
-    # -----------------------------
-    side_a_z = aggregate_z_scores(df, side_a_selected, numeric_cols)
-    side_b_z = aggregate_z_scores(df, side_b_selected, numeric_cols)
+    # Percentiles per category (0-100)
+    side_a_percentiles = [(df[col] <= side_a_z[col]).mean()*100 for col in numeric_cols]
+    side_b_percentiles = [(df[col] <= side_b_z[col]).mean()*100 for col in numeric_cols]
 
-    # -----------------------------
-    # Compute percentiles
-    # -----------------------------
-    side_a_percentiles = compute_percentiles(df, side_a_sum.values, numeric_cols)
-    side_b_percentiles = compute_percentiles(df, side_b_sum.values, numeric_cols)
-
-    # -----------------------------
     # Build comparison dataframe
-    # -----------------------------
     comparison_df = pd.DataFrame({
         "Stat": numeric_cols,
-        "Side A": side_a_z.values,
+        "Side A Z": side_a_z.values,
         "Percentile - Side A": side_a_percentiles,
-        "Side B": side_b_z.values,
+        "Side B Z": side_b_z.values,
         "Percentile - Side B": side_b_percentiles
     })
 
-    # Show dataframe with highlight
+    # Show dataframe with highlights
     st.dataframe(comparison_df.style.apply(highlight_comparison, axis=1))
 
     # -----------------------------
@@ -113,12 +101,12 @@ if not df.empty:
     chart_df = pd.DataFrame({
         "Stat": numeric_cols * 2,
         "Side": ["Side A"]*len(numeric_cols) + ["Side B"]*len(numeric_cols),
-        "Value": list(side_a_z.values) + list(side_b_z.values)
+        "Z-Score": list(side_a_z.values) + list(side_b_z.values)
     })
 
     bar_chart = alt.Chart(chart_df).mark_bar().encode(
         x=alt.X('Stat:N', title='Stat'),
-        y=alt.Y('Value:Q', title='Z-Score Sum'),
+        y=alt.Y('Z-Score:Q'),
         color='Side:N',
         xOffset='Side:N'
     )
