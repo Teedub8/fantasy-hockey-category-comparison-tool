@@ -14,15 +14,14 @@ st.title("Fantasy Hockey Trade & Player Comparison Tool")
 st.sidebar.header("League Settings")
 league_size = st.sidebar.number_input("Number of teams in your league", min_value=4, max_value=20, value=12)
 roster_size = st.sidebar.number_input("Roster spots per team", min_value=10, max_value=20, value=15)
+
+# Categories as checkboxes
 all_categories = ["goals","assists","points","plusMinus","shots","hits","blocks","pim","ppg","shg","gwg"]
 st.sidebar.header("Select categories to compare")
 category_checks = {}
 for cat in all_categories:
     category_checks[cat] = st.sidebar.checkbox(cat, value=True)
-
-# Only keep the selected categories
 selected_categories = [cat for cat, checked in category_checks.items() if checked]
-
 
 # -----------------------------
 # Load CSV data
@@ -66,6 +65,12 @@ def compute_z_scores(df, numeric_cols, replacement_pool):
 # Multi-player selection
 # -----------------------------
 if not df.empty:
+    # Only keep selected categories that exist in the CSV
+    numeric_cols = [col for col in selected_categories if col in df.columns]
+    missing_cols = [col for col in selected_categories if col not in df.columns]
+    if missing_cols:
+        st.warning(f"The following selected categories are missing from the data and will be ignored: {missing_cols}")
+
     player_names = df['name'].tolist()
 
     st.subheader("Side A Players")
@@ -78,7 +83,6 @@ if not df.empty:
     side_b_options = [name for name in player_names if any(n.lower() in name.lower() for n in side_b_input.split(","))] if side_b_input else player_names
     side_b_selected = st.multiselect("Side B Players", side_b_options)
 
-    numeric_cols = selected_categories
     replacement_pool = get_replacement_level(df, league_size, roster_size)
     z_scores_df = compute_z_scores(df, numeric_cols, replacement_pool)
 
@@ -128,13 +132,3 @@ if not df.empty:
     category_ties = (side_a_z == side_b_z).sum()
 
     st.subheader("Category Wins")
-    st.markdown(f"- Side A wins: {category_wins_a} categories")
-    st.markdown(f"- Side B wins: {category_wins_b} categories")
-    st.markdown(f"- Tied: {category_ties} categories")
-
-    if category_wins_a > category_wins_b:
-        st.markdown("### ✅ Side A wins the matchup!")
-    elif category_wins_b > category_wins_a:
-        st.markdown("### ✅ Side B wins the matchup!")
-    else:
-        st.markdown("### ⚖️ The matchup is tied!")
