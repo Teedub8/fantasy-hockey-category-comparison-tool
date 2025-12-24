@@ -15,7 +15,14 @@ st.sidebar.header("League Settings")
 league_size = st.sidebar.number_input("Number of teams in your league", min_value=4, max_value=20, value=12)
 roster_size = st.sidebar.number_input("Roster spots per team", min_value=10, max_value=20, value=15)
 all_categories = ["goals","assists","points","plusMinus","shots","hits","blocks","pim","ppg","shg","gwg"]
-selected_categories = st.sidebar.multiselect("Select categories to compare", all_categories, default=all_categories)
+st.sidebar.header("Select categories to compare")
+category_checks = {}
+for cat in all_categories:
+    category_checks[cat] = st.sidebar.checkbox(cat, value=True)
+
+# Only keep the selected categories
+selected_categories = [cat for cat, checked in category_checks.items() if checked]
+
 
 # -----------------------------
 # Load CSV data
