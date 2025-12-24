@@ -25,7 +25,7 @@ fetch_button = st.sidebar.button("Fetch Live Stats")
 # -----------------------------
 @st.cache_data
 def fetch_yahoo_league_data(league_id):
-import streamlit as st
+    import streamlit as st
 from yahoo_oauth import OAuth2
 
 oauth = OAuth2(
