@@ -71,64 +71,84 @@ if not df.empty:
     if missing_cols:
         st.warning(f"The following selected categories are missing from the data and will be ignored: {missing_cols}")
 
-    player_names = df['name'].tolist()
+    if not numeric_cols:
+        st.warning("No valid categories selected exist in the data. Please select different categories.")
+    else:
+        player_names = df['name'].tolist()
 
-    st.subheader("Side A Players")
-    side_a_input = st.text_input("Search Side A Players (comma-separated)")
-    side_a_options = [name for name in player_names if any(n.lower() in name.lower() for n in side_a_input.split(","))] if side_a_input else player_names
-    side_a_selected = st.multiselect("Side A Players", side_a_options)
+        st.subheader("Side A Players")
+        side_a_input = st.text_input("Search Side A Players (comma-separated)")
+        side_a_options = [name for name in player_names if any(n.lower() in name.lower() for n in side_a_input.split(","))] if side_a_input else player_names
+        side_a_selected = st.multiselect("Side A Players", side_a_options)
 
-    st.subheader("Side B Players")
-    side_b_input = st.text_input("Search Side B Players (comma-separated)")
-    side_b_options = [name for name in player_names if any(n.lower() in name.lower() for n in side_b_input.split(","))] if side_b_input else player_names
-    side_b_selected = st.multiselect("Side B Players", side_b_options)
+        st.subheader("Side B Players")
+        side_b_input = st.text_input("Search Side B Players (comma-separated)")
+        side_b_options = [name for name in player_names if any(n.lower() in name.lower() for n in side_b_input.split(","))] if side_b_input else player_names
+        side_b_selected = st.multiselect("Side B Players", side_b_options)
 
-    replacement_pool = get_replacement_level(df, league_size, roster_size)
-    z_scores_df = compute_z_scores(df, numeric_cols, replacement_pool)
+        replacement_pool = get_replacement_level(df, league_size, roster_size)
+        z_scores_df = compute_z_scores(df, numeric_cols, replacement_pool)
 
-    # Aggregate z-scores for each side
-    side_a_z = z_scores_df[df['name'].isin(side_a_selected)].sum() if side_a_selected else pd.Series([0]*len(numeric_cols), index=numeric_cols)
-    side_b_z = z_scores_df[df['name'].isin(side_b_selected)].sum() if side_b_selected else pd.Series([0]*len(numeric_cols), index=numeric_cols)
+        # Only keep players that exist in the data
+        side_a_in_df = [p for p in side_a_selected if p in df['name'].values]
+        side_b_in_df = [p for p in side_b_selected if p in df['name'].values]
 
-    # Percentiles per category (0-100)
-    side_a_percentiles = [(df[col] <= side_a_z[col]).mean()*100 for col in numeric_cols]
-    side_b_percentiles = [(df[col] <= side_b_z[col]).mean()*100 for col in numeric_cols]
+        if not side_a_in_df and not side_b_in_df:
+            st.warning("No selected players were found in the data. Check spelling or CSV names.")
+        else:
+            # Aggregate z-scores
+            side_a_z = z_scores_df[df['name'].isin(side_a_in_df)].sum() if side_a_in_df else pd.Series([0]*len(numeric_cols), index=numeric_cols)
+            side_b_z = z_scores_df[df['name'].isin(side_b_in_df)].sum() if side_b_in_df else pd.Series([0]*len(numeric_cols), index=numeric_cols)
 
-    # Build comparison dataframe
-    comparison_df = pd.DataFrame({
-        "Stat": numeric_cols,
-        "Side A Z": side_a_z.values,
-        "Percentile - Side A": side_a_percentiles,
-        "Side B Z": side_b_z.values,
-        "Percentile - Side B": side_b_percentiles
-    })
+            # Percentiles per category (0-100)
+            side_a_percentiles = [(df[col] <= side_a_z[col]).mean()*100 for col in numeric_cols]
+            side_b_percentiles = [(df[col] <= side_b_z[col]).mean()*100 for col in numeric_cols]
 
-    # Show dataframe with highlights
-    st.dataframe(comparison_df.style.apply(highlight_comparison, axis=1))
+            # Build comparison dataframe
+            comparison_df = pd.DataFrame({
+                "Stat": numeric_cols,
+                "Side A Z": side_a_z.values,
+                "Percentile - Side A": side_a_percentiles,
+                "Side B Z": side_b_z.values,
+                "Percentile - Side B": side_b_percentiles
+            })
 
-    # -----------------------------
-    # Side-by-side bar chart
-    # -----------------------------
-    chart_df = pd.DataFrame({
-        "Stat": numeric_cols * 2,
-        "Side": ["Side A"]*len(numeric_cols) + ["Side B"]*len(numeric_cols),
-        "Z-Score": list(side_a_z.values) + list(side_b_z.values)
-    })
+            # Show dataframe with highlights
+            st.dataframe(comparison_df.style.apply(highlight_comparison, axis=1))
 
-    bar_chart = alt.Chart(chart_df).mark_bar().encode(
-        x=alt.X('Stat:N', title='Stat'),
-        y=alt.Y('Z-Score:Q'),
-        color='Side:N',
-        xOffset='Side:N'
-    )
+            # -----------------------------
+            # Side-by-side bar chart
+            # -----------------------------
+            chart_df = pd.DataFrame({
+                "Stat": numeric_cols * 2,
+                "Side": ["Side A"]*len(numeric_cols) + ["Side B"]*len(numeric_cols),
+                "Z-Score": list(side_a_z.values) + list(side_b_z.values)
+            })
 
-    st.altair_chart(bar_chart, use_container_width=True)
+            bar_chart = alt.Chart(chart_df).mark_bar().encode(
+                x=alt.X('Stat:N', title='Stat'),
+                y=alt.Y('Z-Score:Q'),
+                color='Side:N',
+                xOffset='Side:N'
+            )
 
-    # -----------------------------
-    # Category wins
-    # -----------------------------
-    category_wins_a = (side_a_z > side_b_z).sum()
-    category_wins_b = (side_b_z > side_a_z).sum()
-    category_ties = (side_a_z == side_b_z).sum()
+            st.altair_chart(bar_chart, use_container_width=True)
 
-    st.subheader("Category Wins")
+            # -----------------------------
+            # Category wins
+            # -----------------------------
+            category_wins_a = (side_a_z > side_b_z).sum()
+            category_wins_b = (side_b_z > side_a_z).sum()
+            category_ties = (side_a_z == side_b_z).sum()
+
+            st.subheader("Category Wins")
+            st.markdown(f"- Side A wins: {category_wins_a} categories")
+            st.markdown(f"- Side B wins: {category_wins_b} categories")
+            st.markdown(f"- Tied: {category_ties} categories")
+
+            if category_wins_a > category_wins_b:
+                st.markdown("### ✅ Side A wins the matchup!")
+            elif category_wins_b > category_wins_a:
+                st.markdown("### ✅ Side B wins the matchup!")
+            else:
+                st.markdown("### ⚖️ The matchup is tied!")
