@@ -1,3 +1,6 @@
 streamlit
 pandas
 numpy
+yahoo-oauth
+yahoo-fantasy-api
+plotly
