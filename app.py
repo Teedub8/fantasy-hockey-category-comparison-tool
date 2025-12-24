@@ -26,7 +26,14 @@ fetch_button = st.sidebar.button("Fetch Live Stats")
 @st.cache_data
 def fetch_yahoo_league_data(league_id):
     # Authenticate with Yahoo (must have credentials.json in project or env vars)
-    oauth = OAuth2(None, None, from_file="credentials.json")
+    import streamlit as st
+from yahoo_oauth import OAuth2
+
+oauth = OAuth2(
+    consumer_key=st.secrets["yahoo"]["consumer_key"],
+    consumer_secret=st.secrets["yahoo"]["consumer_secret"]
+)
+
     if not oauth.token_is_valid():
         st.error("Yahoo authentication failed. Make sure credentials.json is valid.")
         return None
