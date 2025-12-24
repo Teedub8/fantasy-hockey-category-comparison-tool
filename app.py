@@ -1,156 +1,103 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import requests
-from io import StringIO
-
-st.set_page_config(page_title="Fantasy Hockey Comparison Tool", layout="wide")
+from yahoo_oauth import OAuth2
+import yahoo_fantasy_api as yfa
 
 # -----------------------------
-# Sidebar
+# Streamlit App Config
 # -----------------------------
-st.sidebar.title("Controls")
-league_id_input = st.sidebar.text_input("Enter Yahoo League ID (optional)")
-fetch_button = st.sidebar.button("Fetch Live NHL Stats")
+st.set_page_config(page_title="Fantasy Hockey Player Comparison", layout="wide")
 
-# -----------------------------
-# Data Fetching
-# -----------------------------
-@st.cache_data(show_spinner=False)
-def fetch_nhl_stats():
-    # Example: fetch NHL player stats from a public endpoint
-    # For Yahoo league integration, replace with yahoo_fantasy_api fetch using league_id_input
-    try:
-        url = "https://statsapi.web.nhl.com/api/v1/people?season=20252026"  # placeholder
-        # Replace with actual stats fetch
-        # Here we simulate a CSV for testing
-        csv_data = """
-name,goals,assists,points,shots,hits,blocks
-Player A,10,15,25,60,20,5
-Player B,20,10,30,80,15,8
-Player C,5,8,13,40,5,2
-Player D,12,18,30,70,22,7
-Player E,8,10,18,50,10,3
-"""
-        df = pd.read_csv(StringIO(csv_data))
-        return df
-    except Exception as e:
-        st.error(f"Failed to fetch NHL stats: {e}")
-        return pd.DataFrame()  # empty df on failure
-
-# -----------------------------
-# Fetch Data
-# -----------------------------
-if fetch_button or 'nhl_data' not in st.session_state:
-    st.session_state['nhl_data'] = fetch_nhl_stats()
-
-df = st.session_state.get('nhl_data', pd.DataFrame())
-
-if df.empty:
-    st.warning("No NHL data available yet. Please fetch data.")
-    st.stop()
-
-# -----------------------------
-# League Settings
-# -----------------------------
-# Use mock league settings for replacement-level calculation
-league_size = 12
-roster_size = 15
-numeric_cols = [col for col in df.columns if col != "name"]
-
-# -----------------------------
-# Replacement-level calculation
-# -----------------------------
-def get_replacement_level(df, league_size, roster_size):
-    # Sort players by points
-    df_sorted = df.sort_values(by='points', ascending=False)
-    num_starters = league_size * roster_size
-    replacement_pool = df_sorted.iloc[num_starters:]
-    return replacement_pool
-
-replacement_pool = get_replacement_level(df, league_size, roster_size)
-
-# -----------------------------
-# Z-score calculation
-# -----------------------------
-def compute_z_scores(df, numeric_cols, replacement_pool):
-    mean_vals = replacement_pool[numeric_cols].mean()
-    std_vals = replacement_pool[numeric_cols].std().replace(0, 1)  # avoid div by zero
-    z_scores = (df[numeric_cols] - mean_vals) / std_vals
-    return z_scores.fillna(0)
-
-z_scores_df = compute_z_scores(df, numeric_cols, replacement_pool)
-
-# -----------------------------
-# Main App Layout
-# -----------------------------
 st.title("Fantasy Hockey Player Comparison Tool")
 
-st.markdown("Select players for Side A and Side B:")
+# -----------------------------
+# Yahoo League Authentication
+# -----------------------------
+st.sidebar.header("Yahoo League Settings")
+league_id = st.sidebar.text_input("Enter your Yahoo League ID")
+
+# Button to fetch live data
+fetch_button = st.sidebar.button("Fetch Live Stats")
 
 # -----------------------------
-# Player Selection (main area)
+# Utility Functions
 # -----------------------------
-side_a_selected = st.multiselect("Side A Player(s)", options=df['name'].tolist(), default=[df['name'].iloc[0]])
-side_b_selected = st.multiselect("Side B Player(s)", options=df['name'].tolist(), default=[df['name'].iloc[1]])
+@st.cache_data
+def fetch_yahoo_league_data(league_id):
+    # Authenticate with Yahoo (must have credentials.json in project or env vars)
+    oauth = OAuth2(None, None, from_file="credentials.json")
+    if not oauth.token_is_valid():
+        st.error("Yahoo authentication failed. Make sure credentials.json is valid.")
+        return None
+
+    # Connect to Yahoo Fantasy API
+    gm = yfa.Game(oauth, 'nhl')
+    league = gm.to_league(league_id)
+    
+    # Fetch rosters and players
+    teams = league.teams()
+    all_rostered_players = []
+    for team in teams:
+        roster = team.roster()
+        # Include all roster spots: active, bench, IR/IL, IR+, NA
+        for player_list in ['players', 'bench', 'ir', 'ir_plus', 'na']:
+            all_rostered_players.extend(roster.get(player_list, []))
+    
+    # Flatten unique player IDs
+    all_rostered_ids = list({p['player_id']: p for p in all_rostered_players}.keys())
+    
+    # Fetch stats for all players in league
+    all_players = league.player_stats()
+    all_players_df = pd.DataFrame(all_players)
+
+    # Add a column indicating if player is rostered
+    all_players_df['is_rostered'] = all_players_df['player_id'].isin(all_rostered_ids)
+    
+    return all_players_df
+
+@st.cache_data
+def compute_z_scores(df, numeric_cols):
+    # Replacement pool = all unrostered players
+    replacement_pool = df[~df['is_rostered']][numeric_cols]
+    mean_vals = replacement_pool.mean()
+    std_vals = replacement_pool.std(ddof=0)
+    
+    z_scores = (df[numeric_cols] - mean_vals) / std_vals
+    return z_scores
 
 # -----------------------------
-# Category selection
+# Main Logic
 # -----------------------------
-selected_categories = st.multiselect("Select Categories", options=numeric_cols, default=numeric_cols)
+if fetch_button and league_id:
+    with st.spinner("Fetching league data from Yahoo..."):
+        df = fetch_yahoo_league_data(league_id)
+    
+    if df is not None:
+        numeric_cols = [c for c in df.columns if df[c].dtype in [np.float64, np.int64]]
+        
+        # Compute z-scores
+        z_scores = compute_z_scores(df, numeric_cols)
+        z_scores_df = pd.concat([df[['name']], z_scores], axis=1)
 
-# -----------------------------
-# Compute Side Aggregates
-# -----------------------------
-side_a_mask = df['name'].isin(side_a_selected)
-side_b_mask = df['name'].isin(side_b_selected)
+        # -----------------------------
+        # Player Comparison Inputs
+        # -----------------------------
+        st.sidebar.header("Compare Players")
+        players_to_compare = st.sidebar.multiselect("Select players to compare", df['name'].tolist())
+        
+        if players_to_compare:
+            comparison_df = z_scores_df[z_scores_df['name'].isin(players_to_compare)]
+            
+            # Display comparison table
+            st.subheader("Player Z-Score Comparison")
+            st.dataframe(comparison_df.style.highlight_max(axis=0, color='lightgreen'))
 
-side_a_stats = df.loc[side_a_mask, selected_categories].sum()
-side_b_stats = df.loc[side_b_mask, selected_categories].sum()
-
-side_a_z = z_scores_df.loc[side_a_mask, selected_categories].sum()
-side_b_z = z_scores_df.loc[side_b_mask, selected_categories].sum()
-
-# Percentiles
-side_a_percentiles = [(df[col] <= side_a_stats[col]).mean()*100 for col in selected_categories]
-side_b_percentiles = [(df[col] <= side_b_stats[col]).mean()*100 for col in selected_categories]
-
-# -----------------------------
-# Display Comparison Table
-# -----------------------------
-comparison_df = pd.DataFrame({
-    "Category": selected_categories,
-    "Side A": side_a_stats.values,
-    "Side B": side_b_stats.values,
-    "Side A Z": side_a_z.values,
-    "Side B Z": side_b_z.values,
-    "Side A %ile": side_a_percentiles,
-    "Side B %ile": side_b_percentiles
-})
-
-def highlight_comparison(row):
-    return ['background-color: lightgreen' if row["Side A"] > row["Side B"] else
-            'background-color: lightcoral' if row["Side B"] > row["Side A"] else '' 
-            for _ in row]
-
-st.dataframe(comparison_df.style.apply(highlight_comparison, axis=1))
-
-# -----------------------------
-# Side-by-side bar chart
-# -----------------------------
-import altair as alt
-
-chart_data = pd.DataFrame({
-    "Category": selected_categories * 2,
-    "Side": ["Side A"]*len(selected_categories) + ["Side B"]*len(selected_categories),
-    "Value": list(side_a_stats.values) + list(side_b_stats.values)
-})
-
-chart = alt.Chart(chart_data).mark_bar().encode(
-    x=alt.X('Category:N', sort=None),
-    y='Value:Q',
-    color='Side:N',
-    column='Side:N'
-)
-
-st.altair_chart(chart, use_container_width=True)
+            # Side-by-side bar chart
+            st.subheader("Category Comparison")
+            import plotly.express as px
+            melted = comparison_df.melt(id_vars='name', var_name='Category', value_name='Z-Score')
+            fig = px.bar(melted, x='Category', y='Z-Score', color='name', barmode='group')
+            st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("Enter your Yahoo League ID and click 'Fetch Live Stats' to start.")
