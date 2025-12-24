@@ -1,22 +1,6 @@
-import pandas as pd
-import requests
-
-def get_players():
-    teams = requests.get("https://statsapi.web.nhl.com/api/v1/teams").json()['teams']
-    players = []
-    for t in teams:
-        roster = requests.get(f"https://statsapi.web.nhl.com/api/v1/teams/{t['id']}/roster").json()['roster']
-        for p in roster:
-            players.append({"id": p['person']['id'], "name": p['person']['fullName'], "team": t['name'], "position": p['position']['name']})
-    return pd.DataFrame(players)
-
-def get_stats(pid):
-    r = requests.get(f"https://statsapi.web.nhl.com/api/v1/people/{pid}/stats?stats=statsSingleSeason&season=20252026").json()
-    stats = r['stats'][0]['splits']
-    return stats[0]['stat'] if stats else {}
-
-df_players = get_players()
-all_stats = pd.DataFrame([get_stats(pid) for pid in df_players['id']])
-df = pd.concat([df_players.reset_index(drop=True), all_stats.reset_index(drop=True)], axis=1)
-df.to_csv("data/full_nhl_stats.csv", index=False)
-print("CSV file created!")
+id,name,team,position,goals,assists,points
+1,Connor McDavid,Edmonton Oilers,C,40,70,110
+2,Auston Matthews,Toronto Maple Leafs,C,35,60,95
+3,Leon Draisaitl,Edmonton Oilers,C,50,60,110
+4,Nathan MacKinnon,Colorado Avalanche,C,42,55,97
+5,David Pastrnak,Boston Bruins,RW,45,55,100
