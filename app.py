@@ -1,154 +1,156 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import os
-import altair as alt
+import requests
+from io import StringIO
 
-DATA_PATH = "data/full_nhl_stats.csv"
-
-st.title("Fantasy Hockey Trade & Player Comparison Tool")
+st.set_page_config(page_title="Fantasy Hockey Comparison Tool", layout="wide")
 
 # -----------------------------
-# Sidebar: league settings
+# Sidebar
 # -----------------------------
-st.sidebar.header("League Settings")
-league_size = st.sidebar.number_input("Number of teams in your league", min_value=4, max_value=20, value=12)
-roster_size = st.sidebar.number_input("Roster spots per team", min_value=10, max_value=20, value=15)
-
-# Categories as checkboxes
-all_categories = ["goals","assists","points","plusMinus","shots","hits","blocks","pim","ppg","shg","gwg"]
-st.sidebar.header("Select categories to compare")
-category_checks = {}
-for cat in all_categories:
-    category_checks[cat] = st.sidebar.checkbox(cat, value=True)
-selected_categories = [cat for cat, checked in category_checks.items() if checked]
+st.sidebar.title("Controls")
+league_id_input = st.sidebar.text_input("Enter Yahoo League ID (optional)")
+fetch_button = st.sidebar.button("Fetch Live NHL Stats")
 
 # -----------------------------
-# Load CSV data
+# Data Fetching
 # -----------------------------
-if os.path.exists(DATA_PATH):
-    df = pd.read_csv(DATA_PATH)
-    st.success("Loaded NHL stats from CSV.")
-else:
-    st.warning("CSV not found. Please upload or fetch data.")
-    df = pd.DataFrame()
-
-# -----------------------------
-# Functions
-# -----------------------------
-def highlight_comparison(row):
-    styles = [''] * len(row)
+@st.cache_data(show_spinner=False)
+def fetch_nhl_stats():
+    # Example: fetch NHL player stats from a public endpoint
+    # For Yahoo league integration, replace with yahoo_fantasy_api fetch using league_id_input
     try:
-        a_idx = row.index.get_loc("Side A Z")
-        b_idx = row.index.get_loc("Side B Z")
-        if row["Side A Z"] > row["Side B Z"]:
-            styles[a_idx] = 'background-color: lightgreen'
-        elif row["Side B Z"] > row["Side A Z"]:
-            styles[b_idx] = 'background-color: lightgreen'
-    except KeyError:
-        pass
-    return styles
+        url = "https://statsapi.web.nhl.com/api/v1/people?season=20252026"  # placeholder
+        # Replace with actual stats fetch
+        # Here we simulate a CSV for testing
+        csv_data = """
+name,goals,assists,points,shots,hits,blocks
+Player A,10,15,25,60,20,5
+Player B,20,10,30,80,15,8
+Player C,5,8,13,40,5,2
+Player D,12,18,30,70,22,7
+Player E,8,10,18,50,10,3
+"""
+        df = pd.read_csv(StringIO(csv_data))
+        return df
+    except Exception as e:
+        st.error(f"Failed to fetch NHL stats: {e}")
+        return pd.DataFrame()  # empty df on failure
 
+# -----------------------------
+# Fetch Data
+# -----------------------------
+if fetch_button or 'nhl_data' not in st.session_state:
+    st.session_state['nhl_data'] = fetch_nhl_stats()
+
+df = st.session_state.get('nhl_data', pd.DataFrame())
+
+if df.empty:
+    st.warning("No NHL data available yet. Please fetch data.")
+    st.stop()
+
+# -----------------------------
+# League Settings
+# -----------------------------
+# Use mock league settings for replacement-level calculation
+league_size = 12
+roster_size = 15
+numeric_cols = [col for col in df.columns if col != "name"]
+
+# -----------------------------
+# Replacement-level calculation
+# -----------------------------
 def get_replacement_level(df, league_size, roster_size):
-    total_players = league_size * roster_size
-    sorted_df = df.sort_values(by="points", ascending=False)  # or total points/stat you prefer
-    replacement_level = sorted_df.iloc[total_players:]
-    return replacement_level
+    # Sort players by points
+    df_sorted = df.sort_values(by='points', ascending=False)
+    num_starters = league_size * roster_size
+    replacement_pool = df_sorted.iloc[num_starters:]
+    return replacement_pool
 
+replacement_pool = get_replacement_level(df, league_size, roster_size)
+
+# -----------------------------
+# Z-score calculation
+# -----------------------------
 def compute_z_scores(df, numeric_cols, replacement_pool):
     mean_vals = replacement_pool[numeric_cols].mean()
-    std_vals = replacement_pool[numeric_cols].std()
+    std_vals = replacement_pool[numeric_cols].std().replace(0, 1)  # avoid div by zero
     z_scores = (df[numeric_cols] - mean_vals) / std_vals
-    return z_scores
+    return z_scores.fillna(0)
+
+z_scores_df = compute_z_scores(df, numeric_cols, replacement_pool)
 
 # -----------------------------
-# Multi-player selection
+# Main App Layout
 # -----------------------------
-if not df.empty:
-    # Only keep selected categories that exist in the CSV
-    numeric_cols = [col for col in selected_categories if col in df.columns]
-    missing_cols = [col for col in selected_categories if col not in df.columns]
-    if missing_cols:
-        st.warning(f"The following selected categories are missing from the data and will be ignored: {missing_cols}")
+st.title("Fantasy Hockey Player Comparison Tool")
 
-    if not numeric_cols:
-        st.warning("No valid categories selected exist in the data. Please select different categories.")
-    else:
-        player_names = df['name'].tolist()
+st.markdown("Select players for Side A and Side B:")
 
-        st.subheader("Side A Players")
-        side_a_input = st.text_input("Search Side A Players (comma-separated)")
-        side_a_options = [name for name in player_names if any(n.lower() in name.lower() for n in side_a_input.split(","))] if side_a_input else player_names
-        side_a_selected = st.multiselect("Side A Players", side_a_options)
+# -----------------------------
+# Player Selection (main area)
+# -----------------------------
+side_a_selected = st.multiselect("Side A Player(s)", options=df['name'].tolist(), default=[df['name'].iloc[0]])
+side_b_selected = st.multiselect("Side B Player(s)", options=df['name'].tolist(), default=[df['name'].iloc[1]])
 
-        st.subheader("Side B Players")
-        side_b_input = st.text_input("Search Side B Players (comma-separated)")
-        side_b_options = [name for name in player_names if any(n.lower() in name.lower() for n in side_b_input.split(","))] if side_b_input else player_names
-        side_b_selected = st.multiselect("Side B Players", side_b_options)
+# -----------------------------
+# Category selection
+# -----------------------------
+selected_categories = st.multiselect("Select Categories", options=numeric_cols, default=numeric_cols)
 
-        replacement_pool = get_replacement_level(df, league_size, roster_size)
-        z_scores_df = compute_z_scores(df, numeric_cols, replacement_pool)
+# -----------------------------
+# Compute Side Aggregates
+# -----------------------------
+side_a_mask = df['name'].isin(side_a_selected)
+side_b_mask = df['name'].isin(side_b_selected)
 
-        # Only keep players that exist in the data
-        side_a_in_df = [p for p in side_a_selected if p in df['name'].values]
-        side_b_in_df = [p for p in side_b_selected if p in df['name'].values]
+side_a_stats = df.loc[side_a_mask, selected_categories].sum()
+side_b_stats = df.loc[side_b_mask, selected_categories].sum()
 
-        if not side_a_in_df and not side_b_in_df:
-            st.warning("No selected players were found in the data. Check spelling or CSV names.")
-        else:
-            # Aggregate z-scores
-            side_a_z = z_scores_df[df['name'].isin(side_a_in_df)].sum() if side_a_in_df else pd.Series([0]*len(numeric_cols), index=numeric_cols)
-            side_b_z = z_scores_df[df['name'].isin(side_b_in_df)].sum() if side_b_in_df else pd.Series([0]*len(numeric_cols), index=numeric_cols)
+side_a_z = z_scores_df.loc[side_a_mask, selected_categories].sum()
+side_b_z = z_scores_df.loc[side_b_mask, selected_categories].sum()
 
-            # Percentiles per category (0-100)
-            side_a_percentiles = [(df[col] <= side_a_z[col]).mean()*100 for col in numeric_cols]
-            side_b_percentiles = [(df[col] <= side_b_z[col]).mean()*100 for col in numeric_cols]
+# Percentiles
+side_a_percentiles = [(df[col] <= side_a_stats[col]).mean()*100 for col in selected_categories]
+side_b_percentiles = [(df[col] <= side_b_stats[col]).mean()*100 for col in selected_categories]
 
-            # Build comparison dataframe
-            comparison_df = pd.DataFrame({
-                "Stat": numeric_cols,
-                "Side A Z": side_a_z.values,
-                "Percentile - Side A": side_a_percentiles,
-                "Side B Z": side_b_z.values,
-                "Percentile - Side B": side_b_percentiles
-            })
+# -----------------------------
+# Display Comparison Table
+# -----------------------------
+comparison_df = pd.DataFrame({
+    "Category": selected_categories,
+    "Side A": side_a_stats.values,
+    "Side B": side_b_stats.values,
+    "Side A Z": side_a_z.values,
+    "Side B Z": side_b_z.values,
+    "Side A %ile": side_a_percentiles,
+    "Side B %ile": side_b_percentiles
+})
 
-            # Show dataframe with highlights
-            st.dataframe(comparison_df.style.apply(highlight_comparison, axis=1))
+def highlight_comparison(row):
+    return ['background-color: lightgreen' if row["Side A"] > row["Side B"] else
+            'background-color: lightcoral' if row["Side B"] > row["Side A"] else '' 
+            for _ in row]
 
-            # -----------------------------
-            # Side-by-side bar chart
-            # -----------------------------
-            chart_df = pd.DataFrame({
-                "Stat": numeric_cols * 2,
-                "Side": ["Side A"]*len(numeric_cols) + ["Side B"]*len(numeric_cols),
-                "Z-Score": list(side_a_z.values) + list(side_b_z.values)
-            })
+st.dataframe(comparison_df.style.apply(highlight_comparison, axis=1))
 
-            bar_chart = alt.Chart(chart_df).mark_bar().encode(
-                x=alt.X('Stat:N', title='Stat'),
-                y=alt.Y('Z-Score:Q'),
-                color='Side:N',
-                xOffset='Side:N'
-            )
+# -----------------------------
+# Side-by-side bar chart
+# -----------------------------
+import altair as alt
 
-            st.altair_chart(bar_chart, use_container_width=True)
+chart_data = pd.DataFrame({
+    "Category": selected_categories * 2,
+    "Side": ["Side A"]*len(selected_categories) + ["Side B"]*len(selected_categories),
+    "Value": list(side_a_stats.values) + list(side_b_stats.values)
+})
 
-            # -----------------------------
-            # Category wins
-            # -----------------------------
-            category_wins_a = (side_a_z > side_b_z).sum()
-            category_wins_b = (side_b_z > side_a_z).sum()
-            category_ties = (side_a_z == side_b_z).sum()
+chart = alt.Chart(chart_data).mark_bar().encode(
+    x=alt.X('Category:N', sort=None),
+    y='Value:Q',
+    color='Side:N',
+    column='Side:N'
+)
 
-            st.subheader("Category Wins")
-            st.markdown(f"- Side A wins: {category_wins_a} categories")
-            st.markdown(f"- Side B wins: {category_wins_b} categories")
-            st.markdown(f"- Tied: {category_ties} categories")
-
-            if category_wins_a > category_wins_b:
-                st.markdown("### ✅ Side A wins the matchup!")
-            elif category_wins_b > category_wins_a:
-                st.markdown("### ✅ Side B wins the matchup!")
-            else:
-                st.markdown("### ⚖️ The matchup is tied!")
+st.altair_chart(chart, use_container_width=True)
