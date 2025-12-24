@@ -1,6 +1,8 @@
-id,name,team,position,goals,assists,points
-1,Connor McDavid,Edmonton Oilers,C,40,70,110
-2,Auston Matthews,Toronto Maple Leafs,C,35,60,95
-3,Leon Draisaitl,Edmonton Oilers,C,50,60,110
-4,Nathan MacKinnon,Colorado Avalanche,C,42,55,97
-5,David Pastrnak,Boston Bruins,RW,45,55,100
+id,name,team,position,goals,assists,points,plusMinus,shots
+1,Connor McDavid,Edmonton Oilers,C,40,70,110,25,200
+2,Auston Matthews,Toronto Maple Leafs,C,35,60,95,15,180
+3,Leon Draisaitl,Edmonton Oilers,C,50,60,110,30,210
+4,Nathan MacKinnon,Colorado Avalanche,C,42,55,97,20,190
+5,David Pastrnak,Boston Bruins,RW,45,55,100,18,185
+6,Kirill Kaprizov,Minnesota Wild,LW,38,60,98,22,175
+7,Artemi Panarin,New York Rangers,LW,35,65,100,19,170
