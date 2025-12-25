@@ -59,6 +59,9 @@ if not oauth.token_is_valid():
     # Add a column indicating if player is rostered
     all_players_df['is_rostered'] = all_players_df['player_id'].isin(all_rostered_ids)
     
+def fetch_yahoo_league_data(league_id):
+    all_players_df = []
+
     return all_players_df
 
 @st.cache_data
