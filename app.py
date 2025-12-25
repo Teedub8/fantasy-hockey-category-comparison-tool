@@ -44,7 +44,7 @@ league = gm.to_league(league_id)
 teams = league.teams()
 all_rostered_players = []
 for team in teams:
-roster = team.roster()
+    roster = team.roster()
         # Include all roster spots: active, bench, IR/IL, IR+, NA
         for player_list in ['players', 'bench', 'ir', 'ir_plus', 'na']:
             all_rostered_players.extend(roster.get(player_list, []))
