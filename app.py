@@ -50,14 +50,14 @@ for player_list in ['players', 'bench', 'ir', 'ir_plus', 'na']:
             all_rostered_players.extend(roster.get(player_list, []))
     
     # Flatten unique player IDs
-    all_rostered_ids = list({p['player_id']: p for p in all_rostered_players}.keys())
+        all_rostered_ids = list({p['player_id']: p for p in all_rostered_players}.keys())
     
     # Fetch stats for all players in league
-    all_players = league.player_stats()
-    all_players_df = pd.DataFrame(all_players)
+        all_players = league.player_stats()
+        all_players_df = pd.DataFrame(all_players)
 
     # Add a column indicating if player is rostered
-    all_players_df['is_rostered'] = all_players_df['player_id'].isin(all_rostered_ids)
+        all_players_df['is_rostered'] = all_players_df['player_id'].isin(all_rostered_ids)
     
 def fetch_yahoo_league_data(league_id):
     all_players_df = []
