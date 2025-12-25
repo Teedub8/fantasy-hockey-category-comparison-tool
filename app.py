@@ -74,6 +74,13 @@ def compute_z_scores(df, numeric_cols):
     z_scores = (df[numeric_cols] - mean_vals) / std_vals
     return z_scores
 
+def fetch_yahoo_league_data(league_id):
+    from yahoo_fantasy_api import League
+
+    league = League(oauth, league_id)
+    # fetch teams, rosters, players, etc
+    return league
+
 # -----------------------------
 # Main Logic
 # -----------------------------
