@@ -41,7 +41,7 @@ gm = yfa.Game(oauth, 'nhl')
 league = gm.to_league(league_id)
     
     # Fetch rosters and players
-    teams = league.teams()
+teams = league.teams()
     all_rostered_players = []
     for team in teams:
         roster = team.roster()
