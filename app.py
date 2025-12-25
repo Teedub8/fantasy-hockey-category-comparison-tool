@@ -11,6 +11,18 @@ st.set_page_config(page_title="Fantasy Hockey Player Comparison", layout="wide")
 
 st.title("Fantasy Hockey Player Comparison Tool")
 
+from yahoo_oauth import OAuth2
+
+oauth = OAuth2(
+    consumer_key=st.secrets["yahoo"]["consumer_key"],
+    consumer_secret=st.secrets["yahoo"]["consumer_secret"],
+)
+
+if not oauth.token_is_valid():
+    st.warning("Authenticating with Yahoo…")
+    oauth.refresh_access_token()
+    st.stop()
+
 # -----------------------------
 # Yahoo League Authentication
 # -----------------------------
@@ -23,18 +35,6 @@ fetch_button = st.sidebar.button("Fetch Live Stats")
 # -----------------------------
 # Utility Functions
 # -----------------------------
-@st.cache_data
-def fetch_yahoo_league_data(league_id):
-    import streamlit as st
-from yahoo_oauth import OAuth2
-
-oauth = OAuth2(
-    consumer_key=st.secrets["yahoo"]["consumer_key"],
-    consumer_secret=st.secrets["yahoo"]["consumer_secret"]
-)
-
-if not oauth.token_is_valid():
-    oauth.refresh_access_token()
 
     # Connect to Yahoo Fantasy API
     gm = yfa.Game(oauth, 'nhl')
