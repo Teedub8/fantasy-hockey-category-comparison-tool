@@ -38,7 +38,7 @@ fetch_button = st.sidebar.button("Fetch Live Stats")
 
     # Connect to Yahoo Fantasy API
 gm = yfa.Game(oauth, 'nhl')
-    league = gm.to_league(league_id)
+league = gm.to_league(league_id)
     
     # Fetch rosters and players
     teams = league.teams()
