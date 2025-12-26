@@ -23,8 +23,20 @@ oauth = OAuth2(
 )
 
 if not oauth.token_is_valid():
-    st.warning("Authenticating with Yahoo… you may be redirected. Refresh after login.")
-    oauth.refresh_access_token()
+    st.warning("Yahoo authorization required")
+
+    auth_url = oauth.authorization_url()
+    st.write("1️⃣ Open this URL in a new tab and allow access:")
+    st.code(auth_url)
+
+    verifier = st.text_input("2️⃣ Paste the Yahoo verification code here")
+
+    if verifier:
+        oauth.get_access_token(verifier)
+        st.success("Authorization successful. Please refresh the page.")
+        st.stop()
+
+    st.stop()
 
 # -----------------------------
 # Sidebar Inputs
