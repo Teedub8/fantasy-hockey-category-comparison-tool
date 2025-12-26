@@ -25,17 +25,22 @@ oauth = OAuth2(
 if not oauth.token_is_valid():
     st.warning("Yahoo authorization required")
 
+    # Generate the dynamic authorization URL
     auth_url = oauth.authorization_url()
     st.code(auth_url)
-    
+
+    # Ask the user to paste the code they get from the browser
     verifier = st.text_input("Enter the Yahoo authorization code here")
 
     if verifier:
-        oauth.get_access_token(verifier)
-        st.success("Authorization successful. Please refresh the page.")
-        st.stop()
+        try:
+            oauth.get_access_token(verifier)
+            st.success("Authorization successful. Please refresh the page.")
+        except Exception as e:
+            st.error(f"Authorization failed: {e}")
+        st.stop()  # stop execution until next refresh
 
-    st.stop()
+    st.stop()  # stop if verifier is empty
 
 # -----------------------------
 # Sidebar Inputs
