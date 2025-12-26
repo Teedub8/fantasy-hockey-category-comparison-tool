@@ -29,7 +29,7 @@ if not oauth.token_is_valid():
     st.write("1️⃣ Open this URL in a new tab and allow access:")
     st.code(auth_url)
 
-    verifier = st.text_input("2️⃣ Paste the Yahoo verification code here")
+    verifier = st.text_input("pdksxea")
 
     if verifier:
         oauth.get_access_token(verifier)
