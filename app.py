@@ -29,7 +29,7 @@ if not oauth.token_is_valid():
     st.write("https://api.login.yahoo.com/oauth2/request_auth?redirect_uri=oob&response_type=code&client_id=dj0yJmk9dUJ0aG1nUVNCSU1OJmQ9WVdrOWJUVlpWM1pDWW0wbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PTgx")
     st.code(auth_url)
 
-    verifier = st.text_input("hr22wwr")
+    verifier = st.text_input("Enter the Yahoo authorization code here")
 
     if verifier:
         oauth.get_access_token(verifier)
