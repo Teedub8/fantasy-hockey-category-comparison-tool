@@ -29,7 +29,7 @@ if not oauth.token_is_valid():
     auth_url = oauth.authorization_url()
     st.code(auth_url)
 
-    # Ask the user to paste the code they get from the browser
+    # Ask the user to paste the code
     verifier = st.text_input("Enter the Yahoo authorization code here")
 
     if verifier:
@@ -38,9 +38,10 @@ if not oauth.token_is_valid():
             st.success("Authorization successful. Please refresh the page.")
         except Exception as e:
             st.error(f"Authorization failed: {e}")
-        st.stop()  # stop execution until next refresh
 
-    st.stop()  # stop if verifier is empty
+    # Only stop the app if there is no verifier yet
+    if not verifier:
+        st.stop()
 
 # -----------------------------
 # Sidebar Inputs
