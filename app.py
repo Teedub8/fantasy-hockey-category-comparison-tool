@@ -26,10 +26,10 @@ if not oauth.token_is_valid():
     st.warning("Yahoo authorization required")
 
     auth_url = oauth.authorization_url()
-    st.write("1️⃣ Open this URL in a new tab and allow access:")
+    st.write("https://api.login.yahoo.com/oauth2/request_auth?redirect_uri=oob&response_type=code&client_id=dj0yJmk9dUJ0aG1nUVNCSU1OJmQ9WVdrOWJUVlpWM1pDWW0wbWNHbzlNQT09JnM9Y29uc3VtZXJzZWNyZXQmc3Y9MCZ4PTgx")
     st.code(auth_url)
 
-    verifier = st.text_input("pdksxea")
+    verifier = st.text_input("hr22wwr")
 
     if verifier:
         oauth.get_access_token(verifier)
