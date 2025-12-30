@@ -15,37 +15,31 @@ st.set_page_config(
 st.title("Fantasy Hockey Player Comparison Tool")
 
 # -----------------------------
-# Yahoo OAuth (Secrets-Based)
+# Yahoo OAuth (Manual Verifier Flow)
 # -----------------------------
-from streamlit_oauth import OAuth2
-import streamlit as st
-
 oauth = OAuth2(
-    client_id=st.secrets["yahoo"]["consumer_key"],
-    client_secret=st.secrets["yahoo"]["consumer_secret"],
-    authorize_url="https://api.login.yahoo.com/oauth2/request_auth",
-    token_url="https://api.login.yahoo.com/oauth2/get_token",
-    redirect_uri="http://localhost:8501",
-    scope="openid",
-    local_auth=True,   # <<< THIS IS THE KEY CHANGE
+    consumer_key=st.secrets["yahoo"]["consumer_key"],
+    consumer_secret=st.secrets["yahoo"]["consumer_secret"],
 )
 
-st.title("Fantasy Hockey App")
+if not oauth.token_is_valid():
+    st.warning("Yahoo authorization required")
 
-if not oauth.token:
-    auth_url = oauth.get_authorize_url()
-    st.markdown("### Step 1: Authorize Yahoo")
-    st.markdown(f"[Click here to authorize]({auth_url})")
+    auth_url = oauth.get_authorization_url()
+    st.markdown(f"[Click here to authorize Yahoo access]({auth_url})")
 
-    code = st.text_input("Step 2: Paste the verification code here")
+    verifier = st.text_input(
+        "After authorizing, paste the verification code here"
+    )
 
-    if code:
-        oauth.fetch_token(code)
-        st.success("Authentication successful. Reloading…")
-        st.rerun()
-else:
-    st.success("Authenticated with Yahoo")
-    st.write(oauth.token)
+    if verifier:
+        try:
+            oauth.get_access_token(verifier)
+            st.success("Authorization successful. Please refresh the page.")
+        except Exception as e:
+            st.error(f"Authorization failed: {e}")
+
+    st.stop()
 
 # -----------------------------
 # Sidebar Inputs
@@ -63,7 +57,6 @@ def fetch_yahoo_league_data(oauth, league_id):
     league = gm.to_league(league_id)
 
     teams = league.teams()
-
     all_rostered_players = []
 
     for team in teams:
@@ -75,7 +68,6 @@ def fetch_yahoo_league_data(oauth, league_id):
 
     all_players = league.player_stats()
     df = pd.DataFrame(all_players)
-
     df["is_rostered"] = df["player_id"].isin(rostered_ids)
 
     return df
@@ -85,14 +77,10 @@ def fetch_yahoo_league_data(oauth, league_id):
 # -----------------------------
 @st.cache_data(show_spinner=False)
 def compute_z_scores(df, numeric_cols):
-    # Replacement pool = unrostered players ONLY
     replacement_pool = df[~df["is_rostered"]][numeric_cols]
-
     mean_vals = replacement_pool.mean()
     std_vals = replacement_pool.std(ddof=0)
-
-    z_scores = (df[numeric_cols] - mean_vals) / std_vals
-    return z_scores
+    return (df[numeric_cols] - mean_vals) / std_vals
 
 # -----------------------------
 # Main App Logic
@@ -113,7 +101,7 @@ if fetch_button and league_id:
         st.sidebar.header("Compare Players")
         players_to_compare = st.sidebar.multiselect(
             "Select players to compare",
-            df["name"].sort_values().unique().tolist()
+            sorted(df["name"].unique())
         )
 
         if players_to_compare:
@@ -123,9 +111,7 @@ if fetch_button and league_id:
 
             st.subheader("Player Z-Score Comparison")
             st.dataframe(
-                comparison_df.style.highlight_max(
-                    axis=0, color="lightgreen"
-                ),
+                comparison_df.style.highlight_max(axis=0),
                 use_container_width=True
             )
 
@@ -148,6 +134,5 @@ if fetch_button and league_id:
             st.plotly_chart(fig, use_container_width=True)
     else:
         st.error("No data returned from Yahoo. Check League ID.")
-
 else:
     st.info("Enter your Yahoo League ID and click 'Fetch Live Stats' to begin.")
