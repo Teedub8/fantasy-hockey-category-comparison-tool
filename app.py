@@ -14,28 +14,28 @@ st.set_page_config(
 
 st.title("Fantasy Hockey Player Comparison Tool")
 
-# -----------------------------
-# Yahoo OAuth (Manual Verifier Flow)
-# -----------------------------
+from yahoo_oauth import OAuth2
+import streamlit as st
+
+st.title("Fantasy Hockey Category Comparison Tool")
+
 oauth = OAuth2(
     consumer_key=st.secrets["yahoo"]["consumer_key"],
     consumer_secret=st.secrets["yahoo"]["consumer_secret"],
 )
 
 if not oauth.token_is_valid():
-    st.warning("Yahoo authorization required")
+    st.warning("Yahoo authorization required (one-time setup)")
 
-    auth_url = oauth.get_authorization_url()
+    auth_url = oauth.authorization_url()
     st.markdown(f"[Click here to authorize Yahoo access]({auth_url})")
 
-    verifier = st.text_input(
-        "After authorizing, paste the verification code here"
-    )
+    verifier = st.text_input("Paste the Yahoo verification code here")
 
     if verifier:
         try:
             oauth.get_access_token(verifier)
-            st.success("Authorization successful. Please refresh the page.")
+            st.success("Authorization successful. Refresh the page.")
         except Exception as e:
             st.error(f"Authorization failed: {e}")
 
