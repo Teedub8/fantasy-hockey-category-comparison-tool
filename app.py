@@ -17,31 +17,35 @@ st.title("Fantasy Hockey Player Comparison Tool")
 # -----------------------------
 # Yahoo OAuth (Secrets-Based)
 # -----------------------------
+from streamlit_oauth import OAuth2
+import streamlit as st
+
 oauth = OAuth2(
-    consumer_key=st.secrets["yahoo"]["consumer_key"],
-    consumer_secret=st.secrets["yahoo"]["consumer_secret"],
+    client_id=st.secrets["yahoo"]["consumer_key"],
+    client_secret=st.secrets["yahoo"]["consumer_secret"],
+    authorize_url="https://api.login.yahoo.com/oauth2/request_auth",
+    token_url="https://api.login.yahoo.com/oauth2/get_token",
+    redirect_uri="http://localhost:8501",
+    scope="openid",
+    local_auth=True,   # <<< THIS IS THE KEY CHANGE
 )
 
-if not oauth.token_is_valid():
-    st.warning("Yahoo authorization required")
+st.title("Fantasy Hockey App")
 
-    # Generate the dynamic authorization URL
-    auth_url = oauth.authorization_url()
-    st.code(auth_url)
+if not oauth.token:
+    auth_url = oauth.get_authorize_url()
+    st.markdown("### Step 1: Authorize Yahoo")
+    st.markdown(f"[Click here to authorize]({auth_url})")
 
-    # Ask the user to paste the code
-    verifier = st.text_input("Enter the Yahoo authorization code here")
+    code = st.text_input("Step 2: Paste the verification code here")
 
-if verifier:
-    try:
-        oauth.get_access_token(verifier)
-        st.success("Authorization successful. Please refresh the page.")
-    except Exception as e:
-        st.error(f"Authorization failed: {e}")
-
-# Only stop the app if there is no verifier yet
-if not verifier:
-    st.stop()
+    if code:
+        oauth.fetch_token(code)
+        st.success("Authentication successful. Reloading…")
+        st.rerun()
+else:
+    st.success("Authenticated with Yahoo")
+    st.write(oauth.token)
 
 # -----------------------------
 # Sidebar Inputs
