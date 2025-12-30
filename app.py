@@ -4,9 +4,9 @@ import numpy as np
 import yahoo_fantasy_api as yfa
 from yahoo_oauth import OAuth2
 
-# -----------------------------
+# --------------------------------------------------
 # Streamlit App Config
-# -----------------------------
+# --------------------------------------------------
 st.set_page_config(
     page_title="Fantasy Hockey Player Comparison",
     layout="wide"
@@ -14,11 +14,9 @@ st.set_page_config(
 
 st.title("Fantasy Hockey Player Comparison Tool")
 
-from yahoo_oauth import OAuth2
-import streamlit as st
-
-st.title("Fantasy Hockey Category Comparison Tool")
-
+# --------------------------------------------------
+# Yahoo OAuth (Cloud-safe, OOB flow)
+# --------------------------------------------------
 oauth = OAuth2(
     consumer_key=st.secrets["yahoo"]["consumer_key"],
     consumer_secret=st.secrets["yahoo"]["consumer_secret"],
@@ -28,29 +26,37 @@ if not oauth.token_is_valid():
     st.warning("Yahoo authorization required (one-time setup)")
 
     auth_url = oauth.authorization_url()
-    st.markdown(f"[Click here to authorize Yahoo access]({auth_url})")
+    st.markdown(
+        f"""
+        ### Step 1
+        [Click here to authorize Yahoo access]({auth_url})
 
-    verifier = st.text_input("Paste the Yahoo verification code here")
+        ### Step 2
+        After approving, copy the verification code Yahoo gives you and paste it below.
+        """
+    )
+
+    verifier = st.text_input("Yahoo verification code")
 
     if verifier:
         try:
             oauth.get_access_token(verifier)
-            st.success("Authorization successful. Refresh the page.")
+            st.success("Authorization successful. Please refresh the page.")
         except Exception as e:
             st.error(f"Authorization failed: {e}")
 
     st.stop()
 
-# -----------------------------
+# --------------------------------------------------
 # Sidebar Inputs
-# -----------------------------
+# --------------------------------------------------
 st.sidebar.header("Yahoo League Settings")
 league_id = st.sidebar.text_input("Enter your Yahoo League ID")
 fetch_button = st.sidebar.button("Fetch Live Stats")
 
-# -----------------------------
+# --------------------------------------------------
 # Data Fetching
-# -----------------------------
+# --------------------------------------------------
 @st.cache_data(show_spinner=False)
 def fetch_yahoo_league_data(oauth, league_id):
     gm = yfa.Game(oauth, "nhl")
@@ -68,13 +74,13 @@ def fetch_yahoo_league_data(oauth, league_id):
 
     all_players = league.player_stats()
     df = pd.DataFrame(all_players)
-    df["is_rostered"] = df["player_id"].isin(rostered_ids)
 
+    df["is_rostered"] = df["player_id"].isin(rostered_ids)
     return df
 
-# -----------------------------
+# --------------------------------------------------
 # Z-Score Calculation
-# -----------------------------
+# --------------------------------------------------
 @st.cache_data(show_spinner=False)
 def compute_z_scores(df, numeric_cols):
     replacement_pool = df[~df["is_rostered"]][numeric_cols]
@@ -82,9 +88,9 @@ def compute_z_scores(df, numeric_cols):
     std_vals = replacement_pool.std(ddof=0)
     return (df[numeric_cols] - mean_vals) / std_vals
 
-# -----------------------------
+# --------------------------------------------------
 # Main App Logic
-# -----------------------------
+# --------------------------------------------------
 if fetch_button and league_id:
     with st.spinner("Fetching live data from Yahoo…"):
         df = fetch_yahoo_league_data(oauth, league_id)
