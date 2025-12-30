@@ -1,11 +1,10 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 import yahoo_fantasy_api as yfa
 from yahoo_oauth import OAuth2
 
 # --------------------------------------------------
-# Streamlit App Config
+# Page config FIRST
 # --------------------------------------------------
 st.set_page_config(
     page_title="Fantasy Hockey Player Comparison",
@@ -15,14 +14,23 @@ st.set_page_config(
 st.title("Fantasy Hockey Player Comparison Tool")
 
 # --------------------------------------------------
-# Yahoo OAuth (Cloud-safe, OOB flow)
+# Initialize OAuth safely
 # --------------------------------------------------
 oauth = OAuth2(
     consumer_key=st.secrets["yahoo"]["consumer_key"],
     consumer_secret=st.secrets["yahoo"]["consumer_secret"],
 )
 
-if not oauth.token_is_valid():
+token_valid = False
+try:
+    token_valid = oauth.token_is_valid()
+except Exception as e:
+    st.error(f"OAuth init error: {e}")
+
+# --------------------------------------------------
+# AUTH UI — ALWAYS RENDERS
+# --------------------------------------------------
+if not token_valid:
     st.warning("Yahoo authorization required (one-time setup)")
 
     auth_url = oauth.authorization_url()
@@ -32,7 +40,7 @@ if not oauth.token_is_valid():
         [Click here to authorize Yahoo access]({auth_url})
 
         ### Step 2
-        After approving, copy the verification code Yahoo gives you and paste it below.
+        Paste the verification code Yahoo gives you below
         """
     )
 
@@ -41,11 +49,14 @@ if not oauth.token_is_valid():
     if verifier:
         try:
             oauth.get_access_token(verifier)
-            st.success("Authorization successful. Please refresh the page.")
+            st.success("Authorization successful. Refresh the page.")
         except Exception as e:
             st.error(f"Authorization failed: {e}")
 
-    st.stop()
+    # IMPORTANT: do NOT stop execution
+    st.divider()
+    st.info("Waiting for Yahoo authorization…")
+    st.stop()  # <-- TEMPORARY, see note below
 
 # --------------------------------------------------
 # Sidebar Inputs
